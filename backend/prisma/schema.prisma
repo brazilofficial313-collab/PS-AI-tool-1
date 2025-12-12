@@ -1,0 +1,168 @@
+// ======================================
+// PS AI TOOL — DATABASE SCHEMA
+// Prisma + PostgreSQL
+// ======================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String   @id @default(uuid())
+  email           String   @unique
+  passwordHash    String
+  phoneEncrypted  String?  // encrypted phone
+  tier            String   @default("free")
+  referralCode    String   @unique
+  referredBy      String?
+  status          String   @default("active")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  wallet          Wallet?
+  points          UserPoints?
+  devices         UserDevice[]
+  transactions    WalletTransaction[]
+  affiliateProfile AffiliateProfile?
+  referrals       AffiliateEarning[] @relation("AffiliateEarningsReferral")
+}
+
+model UserDevice {
+  id          String   @id @default(uuid())
+  userId      String
+  deviceId    String
+  deviceName  String
+  lastLoginAt DateTime @default(now())
+  status      String   @default("active")
+
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model Wallet {
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  balance           Decimal  @default(0)
+  currency          String   @default("PKR")
+  status            String   @default("active")
+  dailyLimit        Decimal  @default(50000)
+  monthlyLimit      Decimal  @default(200000)
+  lastTransactionAt DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user              User     @relation(fields: [userId], references: [id])
+  transactions      WalletTransaction[]
+}
+
+model WalletTransaction {
+  id              String   @id @default(uuid())
+  walletId        String
+  userId          String
+  type            String
+  amount          Decimal
+  fee             Decimal   @default(0)
+  netAmount       Decimal
+  paymentMethod   String?
+  qrReference     String?
+  transactionId   String?
+  status          String   @default("pending")
+  description     String?
+  metadata        Json?
+  verifiedBy      String?
+  verifiedAt      DateTime?
+  createdAt       DateTime @default(now())
+
+  wallet          Wallet   @relation(fields: [walletId], references: [id])
+  user            User     @relation(fields: [userId], references: [id])
+}
+
+model QRPaymentRequest {
+  id              String   @id @default(uuid())
+  userId          String
+  amount          Decimal
+  currency        String   @default("PKR")
+  purpose         String
+  reference       String   @unique
+  qrType          String
+  qrContent       String
+  qrImageUrl      String?
+  expirationTime  DateTime
+  status          String   @default("pending")
+  paymentProofUrl String?
+  verifiedMethod  String?
+  verifiedAt      DateTime?
+  createdAt       DateTime @default(now())
+
+  user            User     @relation(fields: [userId], references: [id])
+}
+
+model CryptoDepositRequest {
+  id                 String   @id @default(uuid())
+  userId             String
+  currency           String
+  network            String
+  expectedAmount     Decimal
+  walletAddress      String
+  reference          String   @unique
+  status             String   @default("pending")
+  matchedDepositTx   String?
+  matchedAt          DateTime?
+  metadata           Json?
+  createdAt          DateTime @default(now())
+
+  user               User     @relation(fields: [userId], references: [id])
+}
+
+model ProcessedDeposit {
+  id        String   @id @default(uuid())
+  txId      String   @unique
+  coin      String
+  amount    Decimal
+  processedAt DateTime @default(now())
+  metadata  Json?
+}
+
+model UserPoints {
+  userId        String   @id
+  totalPoints   Int      @default(0)
+  todayPoints   Int      @default(0)
+  lastResetDate DateTime @default(now())
+
+  user          User     @relation(fields: [userId], references: [id])
+}
+
+model AffiliateProfile {
+  id                 String   @id @default(uuid())
+  userId             String   @unique
+  defaultRate        Decimal  @default(0.20)
+  payoutScheduleDays Int      @default(15)
+  minPayout          Decimal  @default(2000)
+  status             String   @default("active")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user               User     @relation(fields: [userId], references: [id])
+  earnings           AffiliateEarning[]
+}
+
+model AffiliateEarning {
+  id                  String   @id @default(uuid())
+  affiliateId         String
+  referralId          String
+  sourceTransactionId String?
+  amount              Decimal
+  commissionRate      Decimal
+  status              String   @default("locked")
+  lockedUntil         DateTime
+  payoutBatchId       String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  affiliate           User     @relation(fields: [affiliateId], references: [id])
+  referral            User     @relation("AffiliateEarningsReferral", fields: [referralId], references: [id])
+}
